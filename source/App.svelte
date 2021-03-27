@@ -11,6 +11,18 @@
 	let extensions = [];
 	let searchValue = '';
 
+	const WHITELISTED_PERMS = [
+		'activeTab',
+		'alarms',
+		'clipboardWrite',
+		'contextMenus',
+		'idle',
+		'notifications',
+		'power',
+		'storage',
+	];
+	let permToExts = {};
+
 	// Show all buttons when it's not in a popup #32
 	let showExtras = new URLSearchParams(window.location.search).get('type') !== 'popup';
 	let showInfoMessage = !localStorage.getItem('undo-info-message');
@@ -64,7 +76,21 @@
 				extension.indexedName = extension.name.toLowerCase();
 				return extension;
 			});
-
+		console.log('%o', extensions);
+		for (const ext of extensions) {
+			if (!ext.enabled) {
+				continue;
+			}
+			for (const perm of ext.permissions) {
+				if (!(perm in permToExts)) {
+					permToExts[perm] = [];
+				}
+				permToExts[perm].push(ext);
+			}
+		}
+		for (const [perm, exts] of Object.entries(permToExts)) {
+			console.log('%s: %o', perm, exts.map((ext) => ext.name));
+		}
 		// Update list on uninstall
 		browser.management.onUninstalled.addListener(deleted => {
 			extensions = extensions.filter(({id}) => id !== deleted);
@@ -87,6 +113,25 @@
 	{/if}
 	<!-- svelte-ignore a11y-autofocus -->
 	<input autofocus placeholder={getI18N('searchTxt')} bind:value={searchValue} type="search">
+	<details>
+		<summary>Extensions by permission</summary>
+		<dl>
+			{#each Object.entries(permToExts) as [perm, exts]}
+				{#if !WHITELISTED_PERMS.includes(perm)}
+					<dt>{perm}</dt>
+					<dd>
+						<ul id="ext-list">
+							{#each exts as extension (extension.id)}
+								{#if extension.shown}
+									<Extension {...extension} bind:enabled={extension.enabled} bind:showExtras on:contextmenu={onContextMenu} {undoStack}/>
+								{/if}
+							{/each}
+						</ul>
+					</dd>
+				{/if}
+			{/each}
+		</dl>
+	</details>
 	<div class="options">
 		<button on:click={() => toggleAll(false)}>{getI18N('disAll')}</button>
 		<button on:click={() => toggleAll(true)}>{getI18N('enableAll')}</button>
